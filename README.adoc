@@ -1,0 +1,8 @@
+= Cinder
+
+== Usage
+
+[source]
+----
+clojure -Sdeps '{:deps {io.dominic/cinder {:git/url "https://github.com/SevereOverfl0w/cinder.git" :sha "fd9467b9cd3cbf329b3336f23f07c2471535b4cc"}}}' -m cinder.core <myfile.clj>
+----
