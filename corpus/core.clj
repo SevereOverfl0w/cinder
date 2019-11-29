@@ -6,3 +6,11 @@
 
 ^{:a    20} {:a      20
              :foobar 10}
+
+(let   ) (let   
+           [])
+
+(let )
+(let   )
+(let
+  )

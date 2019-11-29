@@ -1,9 +1,39 @@
 (ns cinder.core
   (:require
-    [clojure.java.io :as io]
-    [parcera.core :as parcera]
-    [clojure.walk :as walk]
-    [clojure.string :as string]))
+    [clojure.string :as string]
+    [parcera.core :as parcera]))
+
+;; adapted from clojure.walk, but preserves metadata
+;; adapted from potemkin
+
+(defn walk
+  "Like `clojure.walk/walk`, but preserves metadata."
+  [inner outer form]
+  (let [x (cond
+            (list? form) (outer (apply list (map inner form)))
+            (instance? clojure.lang.IMapEntry form) (outer (vec (map inner form)))
+            (seq? form) (outer (doall (map inner form)))
+            (coll? form) (outer (into (empty form) (map inner form)))
+            :else (outer form))]
+    (if (instance? clojure.lang.IObj x)
+      (with-meta x (merge (meta form) (meta x)))
+      x)))
+
+(defn postwalk
+  "Like `clojure.walk/postwalk`, but preserves metadata."
+  [f form]
+  (walk (partial postwalk f) f form))
+
+(defn prewalk
+  "Like `clojure.walk/prewalk`, but preserves metadata."
+  [f form]
+  (walk (partial prewalk f) identity (f form)))
+
+;; end walkers
+
+(defn refresh-ast-pos
+  [ast]
+  (parcera/ast (parcera/code ast)))
 
 (defn until-unchanged
   "Call (f (f init)) until the return value of f is no different to the last
@@ -14,83 +44,71 @@
       v
       (recur f v))))
 
+(defn dedent
+  [ast n]
+  (concat
+    (empty ast)
+    (take 1 ast)
+    (map
+      (fn [x]
+        (if (and (sequential? x)
+                 (= :whitespace (first x))
+                 (re-matches
+                   #".*\n +$"
+                   (second x)))
+          [:whitespace (string/replace (second x)
+                                       (re-pattern (format " {0,%d}$" n))
+                                       "")]
+          x))
+      (rest ast))))
+
+(defn vertical-alignment-whitespace?
+  [ast]
+  (and
+    (= :whitespace (first ast))
+    (> (get-in (meta ast) [::parcera/start :column]) 0)
+    (boolean (re-matches #" {2,}" (second ast)))))
+
 (defn remove-vertical-alignment
   [ast]
-  (walk/postwalk
-    (fn [x]
-      (if (and (seq? x)
-               (= :whitespace (first x))
-               (re-matches #"  +" (second x)))
-        [:whitespace " "]
-        x))
-    ast))
-
-(defn refresh-ast-pos
-  [ast]
-  (parcera/ast (parcera/code ast)))
-
-(defn map-align-keys
-  [map-ast]
-  (if-not (get-in (meta map-ast) [::parcera/start :column])
-    map-ast
-    (into
-      [:map]
-      (let [inside-map-column (inc (get-in (meta map-ast) [::parcera/start :column]))]
-        (loop [row -1
-               finding-next-line? true
-               [elem & elems] (rest map-ast)
-               new-list []]
-          (if elem
-            (if finding-next-line?
-              (if (= row (get-in (meta elem) [::parcera/start :row]))
-                (recur row true elems (conj new-list elem))
-                (recur (get-in (meta elem) [::parcera/start :row]) false (cons elem elems) new-list))
-              ;;
-              (let [row-elems (take-while
-                                (fn [x]
-                                  (= row (get-in (meta x) [::parcera/start :row])))
-                                (cons elem elems))]
-                (if-let [non-whitespace (first (filter #(and (seq? %) (not= :whitespace (first %))) row-elems))]
-                  (let [non-whitespace-col (get-in (meta elem) [::parcera/start :column])]
-                    (if (> non-whitespace-col inside-map-column)
-                      (recur
-                        row
-                        true
-                        (cons elem elems)
-                        (loop [[x & xs] (reverse new-list)
-                               new-list ()]
-                          (if (and (seq? x)
-                                   (= :whitespace (first x)))
-                            (vec
-                              (apply conj new-list
-                                     [:whitespace
-                                      (string/replace-first
-                                        (second x)
-                                        (re-pattern
-                                          (format " {%d}$" (- non-whitespace-col inside-map-column)))
-                                        "")]
-                                     xs))
-                            (recur xs (vec (conj new-list x))))))
-                      (recur row true elems (conj new-list elem))))
-                  (recur row true elems (conj new-list elem)))))
-            new-list))))))
-
-(defn align-map-keys
-  [ast]
-  ;; postwalk doesn't retain meta
-  (walk/prewalk
-    (fn [x]
-      (if (and (sequential? x)
-               (= :map (first x)))
-        (map-align-keys x)
-        x))
-    ast))
+  (let [to-dedent (atom #{})]
+    (as-> ast $
+      (prewalk
+        (fn [x]
+          (if (and (seq? x)
+                   (vertical-alignment-whitespace? x))
+            (do
+              (swap! to-dedent conj (assoc (::parcera/start (meta x))
+                                           :amount (dec (count (second x)))))
+              [:whitespace " "])
+            x))
+        $)
+      (reduce
+        (fn [ast to-dedent]
+          (prewalk
+            (fn [x]
+              (if (and
+                    (seq? x)
+                    (= (get-in (meta x) [::parcera/start :row])
+                       (:row to-dedent))
+                    (> (get-in (meta x) [::parcera/start :column] -1)
+                       (:column to-dedent)))
+                (dedent x (:amount to-dedent))
+                x))
+            ast))
+        $
+        @to-dedent))))
 
 (comment
+  (remove-vertical-alignment
+    (refresh-ast-pos
+      (remove-vertical-alignment
+        (parcera/ast (slurp "corpus/core.clj")))))
+
   (print
     (parcera/code
       (until-unchanged
-        (comp align-map-keys refresh-ast-pos remove-vertical-alignment)
+        (comp refresh-ast-pos remove-vertical-alignment)
         (parcera/ast (slurp "corpus/core.clj"))))))
 
 (defn -main
@@ -98,5 +116,5 @@
   (print
     (parcera/code
       (until-unchanged
-        (comp align-map-keys refresh-ast-pos remove-vertical-alignment)
+        (comp refresh-ast-pos remove-vertical-alignment)
         (parcera/ast (slurp file))))))
