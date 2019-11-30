@@ -49,7 +49,7 @@
   (concat
     (empty ast)
     (take 1 ast)
-    (map
+    (prewalk
       (fn [x]
         (if (and (sequential? x)
                  (= :whitespace (first x))
