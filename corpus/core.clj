@@ -4,6 +4,8 @@
   ;; still here
   (+ a foobar))
 
+;; Keep me
+
 ^{:a    20} {:a      20
              :foobar 10}
 
@@ -18,3 +20,15 @@
 (let   )
 (let
   )
+
+(comment
+  ;; This should stay
+
+  {:a 1
+   ;; Don't promote the next brace
+   }
+
+  ;; This should also stay
+  )
+
+#_(let                )
