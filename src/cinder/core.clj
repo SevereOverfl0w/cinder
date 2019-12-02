@@ -111,10 +111,47 @@
         (comp refresh-ast-pos remove-vertical-alignment)
         (parcera/ast (slurp "corpus/core.clj"))))))
 
+(defn- invalid-code
+  [ast]
+  (map (comp ::parcera/start meta)
+       (filter
+         #(= ::parcera/failure (first %))
+         (filter seq?
+                 (tree-seq seq? next ast)))))
+
 (defn -main
-  [& [file]]
-  (print
-    (parcera/code
-      (until-unchanged
-        (comp refresh-ast-pos remove-vertical-alignment)
-        (parcera/ast (slurp file))))))
+  [& args]
+  (let [[opts files]
+        (split-with #(and (string/starts-with? % "-")
+                          (not= "--" %))
+                    args)
+        files (if (= "--" (first files))
+                (rest files)
+                files)
+        opts (set opts)]
+    (doseq [file files]
+      (try
+        (let [input-ast (parcera/ast (slurp file))]
+          (if-let [invalids (seq (invalid-code input-ast))]
+            (binding [*out* *err*]
+              (doseq [invalid invalids]
+                (printf "%s:%s:%s: Invalid code\n" file (:row invalid) (:column invalid)))
+              (System/exit 1))
+            (let [output-ast (until-unchanged
+                               (fn [ast]
+                                 (-> ast
+                                     remove-vertical-alignment
+                                     refresh-ast-pos))
+                               input-ast)]
+              (cond->> (parcera/code output-ast)
+                (contains? opts "--fix")
+                (spit file)
+
+                (and (not (contains? opts "--fix"))
+                     (not (contains? opts "--silent")))
+                print))))
+        (catch Exception e
+          (throw (ex-info
+                   (str "Failure while processing file " file)
+                   {:file file}
+                   e)))))))
