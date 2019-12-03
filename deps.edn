@@ -1,9 +1,5 @@
 {:paths ["src"]
  :deps
- {com.github.benedekfazekas/trin
-  {:git/url "https://github.com/benedekfazekas/trin.git"
-   :sha "95c8ac36226c4aea0e7f5abb238b9c7b149e1f29"
-   :deps/root "trin"}
-  clj-kondo {:mvn/version "2019.11.23"}
+ {clj-kondo {:mvn/version "2019.11.23"}
   org.antlr/antlr4-runtime {:mvn/version "4.7.1"}
   carocad/parcera {:mvn/version "0.5.0"}}}
