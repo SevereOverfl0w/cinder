@@ -136,6 +136,7 @@
             (binding [*out* *err*]
               (doseq [invalid invalids]
                 (printf "%s:%s:%s: Invalid code\n" file (:row invalid) (:column invalid)))
+              (flush)
               (System/exit 1))
             (let [output-ast (until-unchanged
                                (fn [ast]
