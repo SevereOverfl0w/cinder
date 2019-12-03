@@ -128,7 +128,8 @@
         files (if (= "--" (first files))
                 (rest files)
                 files)
-        opts (set opts)]
+        opts (set opts)
+        exit (atom 0)]
     (doseq [file files]
       (try
         (let [input-ast (parcera/ast (slurp file))]
