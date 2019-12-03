@@ -137,7 +137,7 @@
               (doseq [invalid invalids]
                 (printf "%s:%s:%s: %s\n" file (:row invalid) (:column invalid) (:message invalid "Invalid code")))
               (flush)
-              (System/exit 1))
+              (swap! exit inc))
             (let [output-ast (until-unchanged
                                (fn [ast]
                                  (-> ast
@@ -155,4 +155,5 @@
           (throw (ex-info
                    (str "Failure while processing file " file)
                    {:file file}
-                   e)))))))
+                   e)))))
+    (System/exit @exit)))
