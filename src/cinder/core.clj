@@ -135,7 +135,7 @@
           (if-let [invalids (seq (invalid-code input-ast))]
             (binding [*out* *err*]
               (doseq [invalid invalids]
-                (printf "%s:%s:%s: Invalid code\n" file (:row invalid) (:column invalid)))
+                (printf "%s:%s:%s: %s\n" file (:row invalid) (:column invalid) (:message invalid "Invalid code")))
               (flush)
               (System/exit 1))
             (let [output-ast (until-unchanged
