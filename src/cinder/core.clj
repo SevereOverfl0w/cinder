@@ -113,11 +113,15 @@
 
 (defn- invalid-code
   [ast]
-  (map (comp ::parcera/start meta)
-       (filter
-         #(= ::parcera/failure (first %))
-         (filter seq?
-                 (tree-seq seq? next ast)))))
+  (map
+    (fn [ast]
+      (merge
+        {:message (second ast)}
+        (::parcera/start (meta ast))))
+    (filter
+      #(= ::parcera/failure (first %))
+      (filter seq?
+              (tree-seq seq? next ast)))))
 
 (defn -main
   [& args]
