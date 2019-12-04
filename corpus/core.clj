@@ -28,6 +28,21 @@
    ;; Don't promote the next brace
    }
 
+  [1   2
+   3   4
+   ] ;; What about this?
+
+  [1   2
+   3   4
+   ]
+
+
+  (defn foo "Oh no!" []
+    (str "What a mess! "
+         (inc 122)
+         )
+    )
+  
   ;; This should also stay
   )
 
