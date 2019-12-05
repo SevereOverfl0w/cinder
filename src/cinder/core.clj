@@ -99,6 +99,20 @@
         $
         @to-dedent))))
 
+  (defn trailing-whitespace?
+    "Returns true if a line has trailing whitespace."
+    [ast-line]
+    (let [[identifyer text] (last ast-line)]
+      (boolean (and (= :whitespace identifyer)
+                    (not (re-find #"\S" text))))))
+
+  (defn remove-trailing-whitespace
+    [ast]
+    (concat [(first ast)]
+            (for [ast-line (rest ast)]
+              (if (trailing-whitespace? ast-line)
+                (butlast ast-line)
+                ast-line))))
 (comment
   (remove-vertical-alignment
     (refresh-ast-pos
@@ -146,6 +160,8 @@
             (let [output-ast (until-unchanged
                                (fn [ast]
                                  (-> ast
+                                     remove-trailing-whitespace
+                                     refresh-ast-pos
                                      remove-vertical-alignment
                                      refresh-ast-pos))
                                input-ast)]
